@@ -30,6 +30,10 @@ parser.add_argument('--temperature', type=float, default=1.0,
                     help='temperature - higher will increase diversity')
 parser.add_argument('--log-interval', type=int, default=100,
                     help='reporting interval')
+#my addition
+parser.add_argument('--strategy', type=str, default='sampling', 
+                    help='set generation strategy to "greedy" search (default: "sample"')
+#end of my addition
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -42,6 +46,13 @@ device = torch.device("cuda" if args.cuda else "cpu")
 
 if args.temperature < 1e-3:
     parser.error("--temperature has to be greater or equal 1e-3")
+    
+#my addition
+if args.strategy != "greedy":
+    print('Running in sample mode')
+else:
+    print('Running in greedy mode')
+#end of my addition
 
 with open(args.checkpoint, 'rb') as f:
     model = torch.load(f).to(device)
@@ -61,13 +72,23 @@ with open(args.outf, 'w') as outf:
             if is_transformer_model:
                 output = model(input, False)
                 word_weights = output[-1].squeeze().div(args.temperature).exp().cpu()
-                word_idx = torch.multinomial(word_weights, 1)[0]
+                #my addition
+                if args.strategy == 'greedy':
+                    word_idx = torch.argmax(word_weights)
+                else:
+                    word_idx = torch.multinomial(word_weights, 1)[0]
+                #end of my addition
                 word_tensor = torch.Tensor([[word_idx]]).long().to(device)
                 input = torch.cat([input, word_tensor], 0)
             else:
                 output, hidden = model(input, hidden)
                 word_weights = output.squeeze().div(args.temperature).exp().cpu()
-                word_idx = torch.multinomial(word_weights, 1)[0]
+                #my addition
+                if args.strategy == 'greedy':
+                    word_idx = torch.argmax(word_weights)
+                else:
+                    word_idx = torch.multinomial(word_weights, 1)[0]
+                #end of my addition
                 input.fill_(word_idx)
 
             word = corpus.dictionary.idx2word[word_idx]
